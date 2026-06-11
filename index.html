@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang='ko'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>교통 배정 및 사용자 평형(UE) 시뮬레이터</title>
+    <script src='https://cdn.tailwindcss.com'></script>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class='bg-slate-50 p-6'>
+    <div class='max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6'>
+        <div class='border-b pb-4 mb-6'>
+            <h1 class='text-2xl font-bold text-slate-800'>창원터널(무료) 및 불모산터널(유료) 간 통행 배정 모델링</h1>
+        </div>
+        <div class='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+            <div class='space-y-6 bg-slate-100 p-5 rounded-lg border border-slate-200'>
+                <h2 class='text-lg font-bold text-slate-700 mb-4 border-b pb-2 border-slate-300'>제어 파라미터</h2>
+                <div>
+                    <label class='block text-sm font-semibold text-slate-700 mb-1'>최대 한계 교통량 (정적 횡축 기준)</label>
+                    <input type='range' id='maxDemand' min='5000' max='15000' step='500' value='20000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='maxDemandVal'>10,000</span><span>대</span></div>
+                </div>
+                <div>
+                    <label class='block text-sm font-semibold text-slate-700 mb-1'>현재 총 통행 수요 (Demand)</label>
+                    <input type='range' id='demand' min='1000' max='10000' step='100' value='4000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='demandVal'>4,000</span><span>대</span></div>
+                </div>
+                <div>
+                    <label class='block text-sm font-semibold text-slate-700 mb-1'>유료도로 실제 통행료</label>
+                    <input type='range' id='toll' min='500' max='3000' step='100' value='1100' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='tollVal'>1,100</span><span>원</span></div>
+                </div>
+                <div>
+                    <label class='block text-sm font-semibold text-slate-700 mb-1'>시간가치 (VOT, 시간당)</label>
+                    <input type='range' id='vot' min='6000' max='30000' step='500' value='12000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='votVal'>12,000</span><span>원/시간</span></div>
+                </div>
+            </div>
+            <div class='lg:col-span-2 space-y-6'>
+                <div class='grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200'>
+                    <div>
+                        <p class='text-xs text-slate-500 font-medium'>환산 시간 패널티 (&tau;)</p>
+                        <p id='tauDisplay' class='text-lg font-bold text-slate-700'>0.00 분</p>
+                    </div>
+                    <div>
+                        <p class='text-xs text-slate-500 font-medium'>현재 노선 상태</p>
+                        <div class='mt-1'><span id='statusBadge' class='text-xs font-bold px-2 py-0.5 rounded'>계산 중...</span></div>
+                    </div>
+                </div>
+                
+                <div class='space-y-6 p-6 bg-white border border-slate-200 rounded-lg relative'>
+                    <div class='space-y-2'>
+                        <div class='text-sm font-bold text-slate-600'>유료도로 (불모산터널)</div>
+                        <div class='w-full bg-slate-100 h-10 rounded relative border border-slate-200 flex'>
+                            <div id='tollTimeBar' class='bg-emerald-600 h-full flex items-center justify-center text-white text-xs font-bold transition-all duration-200' style='width: 0%;'>
+                                <span id='tollTimeLabel'></span>
+                            </div>
+                            <div id='tollPenaltyBar' class='bg-rose-500 h-full flex items-center justify-center text-white text-xs font-bold transition-all duration-200 border-l border-white/50' style='width: 0%;'>
+                                <span id='tollPenaltyLabel'></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='space-y-2'>
+                        <div class='text-sm font-bold text-slate-600'>무료도로 (창원터널)</div>
+                        <div class='w-full bg-slate-100 h-10 rounded relative border border-slate-200'>
+                            <div id='freeBar' class='bg-blue-600 h-full flex items-center justify-center text-white text-xs font-bold transition-all duration-200' style='width: 0%;'>
+                                <span id='freeLabel'></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id='indicatorLine' class='absolute top-0 bottom-0 border-l-2 border-dashed border-rose-400 pointer-events-none transition-all duration-200' style='left: 0%;'>
+                    </div>
+                </div>
+                <div class='overflow-x-auto'>
+                    <table class='min-w-full divide-y divide-slate-200 text-sm'>
+                        <thead class='bg-slate-50'>
+                            <tr>
+                                <th class='px-4 py-2 text-left font-semibold text-slate-600'>대안 노선</th>
+                                <th class='px-4 py-2 text-right font-semibold text-slate-600'>분담 교통량</th>
+                                <th class='px-4 py-2 text-right font-semibold text-slate-600'>분담율</th>
+                                <th class='px-4 py-2 text-right font-semibold text-slate-600'>소요 시간</th>
+                                <th class='px-4 py-2 text-right font-semibold text-slate-600'>일반화 비용</th>
+                            </tr>
+                        </thead>
+                        <tbody class='divide-y divide-slate-200 text-slate-700'>
+                            <tr>
+                                <td class='px-4 py-2 font-medium'>유료도로 (불모산)</td>
+                                <td id='tFlow' class='px-4 py-2 text-right'>0 대</td>
+                                <td id='tShare' class='px-4 py-2 text-right'>0.0%</td>
+                                <td id='tTime' class='px-4 py-2 text-right'>0.0 분</td>
+                                <td id='tCost' class='px-4 py-2 text-right font-semibold text-blue-600'>0.0 분</td>
+                            </tr>
+                            <tr>
+                                <td class='px-4 py-2 font-medium'>무료도로 (창원)</td>
+                                <td id='fFlow' class='px-4 py-2 text-right'>0 대</td>
+                                <td id='fShare' class='px-4 py-2 text-right'>0.0%</td>
+                                <td id='fTime' class='px-4 py-2 text-right'>0.0 분</td>
+                                <td id='fCost' class='px-4 py-2 text-right font-semibold text-emerald-600'>0.0 분</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const t0 = 10, maxC = 3000, alpha = 0.15, beta = 4.0;
+        function bpr(q) { return t0 * (1 + alpha * Math.pow(q / maxC, beta)); }
+        function runSim() {
+            const maxD = parseFloat(document.getElementById('maxDemand').value);
+            const dem = parseFloat(document.getElementById('demand').value);
+            const toll = parseFloat(document.getElementById('toll').value);
+            const vot = parseFloat(document.getElementById('vot').value);
+            document.getElementById('maxDemandVal').innerText = maxD.toLocaleString();
+            document.getElementById('demandVal').innerText = dem.toLocaleString();
+            document.getElementById('tollVal').innerText = toll.toLocaleString();
+            document.getElementById('votVal').innerText = vot.toLocaleString();
+            document.getElementById('demand').max = maxD;
+            if (dem > maxD) {
+                document.getElementById('demand').value = maxD;
+                return runSim();
+            }
+            const tau = (toll * 60) / vot;
+            document.getElementById('tauDisplay').innerText = tau.toFixed(2) + ' 분';
+            let l_m = 0; let h_m = maxD;
+            for (let i = 0; i < 40; i++) {
+                let m_m = (l_m + h_m) / 2;
+                if (bpr(m_m) > bpr(maxD - m_m) + tau) { h_m = m_m; } else { l_m = m_m; }
+            }
+            const max_ue_cost = bpr((l_m + h_m) / 2);
+            const xLimit = max_ue_cost * 1.25;
+            let q_f, q_t, t_f, t_t;
+            if (bpr(dem) <= t0 + tau) {
+                q_f = dem; q_t = 0; t_f = bpr(dem); t_t = t0;
+            } else {
+                let l = 0; let h = dem;
+                for (let i = 0; i < 40; i++) {
+                    let m = (l + h) / 2;
+                    if (bpr(m) > bpr(dem - m) + tau) { h = m; } else { l = m; }
+                }
+                q_f = (l + h) / 2; q_t = dem - q_f; t_f = bpr(q_f); t_t = bpr(q_t);
+            }
+            const c_f = t_f; const c_t = t_t + tau;
+            const w_f = Math.min((c_f / xLimit) * 100, 100);
+            const w_t_time = Math.min((t_t / xLimit) * 100, 100);
+            const w_t_pen = Math.min((tau / xLimit) * 100, 100);
+            // 무료도로 시각화 업데이트
+            document.getElementById('freeBar').style.width = w_f + '%';
+            document.getElementById('freeLabel').innerText = t_f.toFixed(1) + ' 분 (' + Math.round(q_f).toLocaleString() + '대)';
+            // 유료도로 시각화 업데이트 (다중 분할 바 적용)
+            document.getElementById('tollTimeBar').style.width = w_t_time + '%';
+            document.getElementById('tollTimeLabel').innerText = t_t.toFixed(1) + ' 분 (' + Math.round(q_t).toLocaleString() + '대)';
+            document.getElementById('tollPenaltyBar').style.width = w_t_pen + '%';
+            if (tau > 0) {
+                document.getElementById('tollPenaltyLabel').innerText = '통행료: ' + tau.toFixed(1) + ' 분';
+            } else {
+                document.getElementById('tollPenaltyLabel').innerText = '';
+            }
+            // 하단 테이블 동기화
+            document.getElementById('fFlow').innerText = Math.round(q_f).toLocaleString() + ' 대';
+            document.getElementById('tFlow').innerText = Math.round(q_t).toLocaleString() + ' 대';
+            document.getElementById('fShare').innerText = ((q_f / dem) * 100).toFixed(1) + '%';
+            document.getElementById('tShare').innerText = ((q_t / dem) * 100).toFixed(1) + '%';
+            document.getElementById('fTime').innerText = t_f.toFixed(1) + ' 분';
+            document.getElementById('tTime').innerText = t_t.toFixed(1) + ' 분';
+            document.getElementById('fCost').innerText = c_f.toFixed(1) + ' 분';
+            document.getElementById('tCost').innerText = c_t.toFixed(1) + ' 분';
+            const lineLeft = ((t0 + tau) / xLimit) * 100;
+            document.getElementById('indicatorLine').style.left = lineLeft + '%';
+            const b = document.getElementById('statusBadge');
+            if (q_t === 0) {
+                b.innerText = '구석해 상태'; b.className = 'text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800';
+            } else {
+                b.innerText = '사용자 평형 상태'; b.className = 'text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800';
+            }
+        }
+        document.getElementById('maxDemand').addEventListener('input', runSim);
+        document.getElementById('demand').addEventListener('input', runSim);
+        document.getElementById('toll').addEventListener('input', runSim);
+        document.getElementById('vot').addEventListener('input', runSim);
+        runSim();
+    </script>
+</body>
+</html>
