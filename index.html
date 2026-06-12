@@ -28,18 +28,18 @@
                 <h2 class='text-lg font-bold text-slate-700 mb-4 border-b pb-2 border-slate-300'>제어 파라미터</h2>
                 <div>
                     <label class='block text-sm font-semibold text-slate-700 mb-1'>최대 한계 교통량 (정적 횡축 기준)</label>
-                    <input type='range' id='maxDemand' min='5000' max='15000' step='500' value='20000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
-                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='maxDemandVal'>10,000</span><span>대</span></div>
+                    <input type='range' id='maxDemand' min='5000' max='30000' step='500' value='13000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='maxDemandVal'>13,000</span><span>대</span></div>
                 </div>
                 <div>
                     <label class='block text-sm font-semibold text-slate-700 mb-1'>현재 총 통행 수요 (Demand)</label>
-                    <input type='range' id='demand' min='1000' max='10000' step='100' value='4000' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
-                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='demandVal'>4,000</span><span>대</span></div>
+                    <input type='range' id='demand' min='1000' max='30000' step='100' value='4500' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='demandVal'>4,500</span><span>대</span></div>
                 </div>
                 <div>
                     <label class='block text-sm font-semibold text-slate-700 mb-1'>유료도로 실제 통행료</label>
-                    <input type='range' id='toll' min='500' max='3000' step='100' value='1100' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
-                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='tollVal'>1,100</span><span>원</span></div>
+                    <input type='range' id='toll' min='500' max='5000' step='100' value='2200' class='w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer slider-thumb'>
+                    <div class='flex justify-between text-xs text-slate-500 mt-1'><span id='tollVal'>2,200</span><span>원</span></div>
                 </div>
                 <div>
                     <label class='block text-sm font-semibold text-slate-700 mb-1'>시간가치 (VOT, 시간당)</label>
@@ -48,10 +48,15 @@
                 </div>
             </div>
             <div class='lg:col-span-2 space-y-6'>
-                <div class='grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200'>
+                
+                <div class='grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200'>
                     <div>
                         <p class='text-xs text-slate-500 font-medium'>환산 시간 패널티 (&tau;)</p>
                         <p id='tauDisplay' class='text-lg font-bold text-slate-700'>0.00 분</p>
+                    </div>
+                    <div>
+                        <p class='text-xs text-slate-500 font-medium'>민자사업자 시간당 수익</p>
+                        <p id='revenueDisplay' class='text-lg font-bold text-blue-600'>0 원</p>
                     </div>
                     <div>
                         <p class='text-xs text-slate-500 font-medium'>현재 노선 상태</p>
@@ -152,6 +157,11 @@
                 q_f = (l + h) / 2; q_t = dem - q_f; t_f = bpr(q_f); t_t = bpr(q_t);
             }
             const c_f = t_f; const c_t = t_t + tau;
+            
+            // [신규] 민자사업자 예상 수익 실시간 계산 및 렌더링
+            const revenue = Math.round(q_t) * toll;
+            document.getElementById('revenueDisplay').innerText = revenue.toLocaleString() + ' 원';
+            
             const w_f = Math.min((c_f / xLimit) * 100, 100);
             const w_t_time = Math.min((t_t / xLimit) * 100, 100);
             const w_t_pen = Math.min((tau / xLimit) * 100, 100);
